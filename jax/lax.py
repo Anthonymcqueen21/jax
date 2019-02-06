@@ -2086,18 +2086,17 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
 
   if operand_bdim is not None and start_indices_bdim is None:
     collapsed_slice_dims = set(dimension_numbers.collapsed_slice_dims)
-    num_preceding_window_dims = sum(  # 2
-        1 for i in range(len(slice_sizes))
-        if i < operand_bdim and i not in collapsed_slice_dims)
-    offset_dims = list(dimension_numbers.offset_dims)  # [2, 3, 7]
+    num_preceding_window_dims = sum(1 for i in range(operand_bdim)
+                                    if i not in collapsed_slice_dims)
     if num_preceding_window_dims == 0:
-      bdim_offset_dim = 0
+      out_bdim = 0
     else:
-      bdim_offset_dim = offset_dims[num_preceding_window_dims - 1] + 1
-    new_offset_dims = (offset_dims[:num_preceding_window_dims]
-                       + [bdim_offset_dim]
-                       + list(onp.add(1, offset_dims[num_preceding_window_dims:])))
-    new_offset_dims = tuple(new_offset_dims)
+      out_bdim = offset_dims[num_preceding_window_dims - 1] + 1
+    offset_dims = list(dimension_numbers.offset_dims)
+    offset_dims = (offset_dims[:num_preceding_window_dims]
+                   + [out_bdim]
+                   + [i + 1 for i in offset_dims[num_preceding_window_dims:]])
+    offset_dims = tuple(offset_dims)
 
     slice_sizes = list(slice_sizes)
     slice_sizes.insert(operand_bdim, operand.shape[operand_bdim])
@@ -2110,15 +2109,28 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
                             for i in dimension_numbers.start_index_map)
 
     dnums = GatherDimensionNumbers(
-        offset_dims=new_offset_dims,
+        offset_dims=offset_dims,
         collapsed_slice_dims=collapsed_slice_dims,
         start_index_map=start_index_map,
         index_vector_dim=dimension_numbers.index_vector_dim)
 
     return gather(operand, start_indices, dimension_numbers=dnums,
-                  slice_sizes=slice_sizes), bdim_offset_dim
+                  slice_sizes=slice_sizes), out_bdim
+
+  elif operand_bdim is None and start_indices_bdim is not None:
+    index_vector_dim = dimension_numbers.index_vector_dim + 1
+    out_bdim = 0  # TODO
+    # TODO offset_dims?
+
+    dnums = GatherDimensionNumbers(
+        offset_dims=dimension_numbers.offset_dims,
+        collapsed_slice_dims=dimension_numbers.collapsed_slice_dims,
+        start_index_map=dimension_numbers.start_index_map,
+        index_vector_dim=index_vector_dim)
+    return gather(operand, start_indices, dimension_numbers=dnums,
+                  slice_sizes=slice_sizes), out_bdim
   else:
-    raise NotImplementedError  # TODO(mattjj): 
+    raise NotImplementedError  # TODO(mattjj, phawkins)
 
 
 gather_p = standard_primitive(
