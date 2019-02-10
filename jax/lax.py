@@ -2085,37 +2085,18 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
   operand_bdim, start_indices_bdim = batch_dims
 
   if operand_bdim is not None and start_indices_bdim is None:
-    collapsed_slice_dims = set(dimension_numbers.collapsed_slice_dims)
-    num_preceding_window_dims = sum(1 for i in range(operand_bdim)
-                                    if i not in collapsed_slice_dims)
-    if num_preceding_window_dims == 0:
-      out_bdim = 0
-    else:
-      out_bdim = dimension_numbers.offset_dims[num_preceding_window_dims - 1] + 1
-    offset_dims = list(dimension_numbers.offset_dims)
-    offset_dims = (offset_dims[:num_preceding_window_dims]
-                   + [out_bdim]
-                   + [i + 1 for i in offset_dims[num_preceding_window_dims:]])
-    offset_dims = tuple(offset_dims)
-
-    slice_sizes = list(slice_sizes)
-    slice_sizes.insert(operand_bdim, operand.shape[operand_bdim])
-    slice_sizes = tuple(slice_sizes)
-
-    collapsed_slice_dims = tuple(i + 1 if i >= operand_bdim else i
-                                 for i in dimension_numbers.collapsed_slice_dims)
-
-    start_index_map = tuple(i + 1 if i > operand_bdim else i
-                            for i in dimension_numbers.start_index_map)
-
+    operand = batching.move_dim_to_front(operand, operand_bdim)
+    slice_sizes = (operand.shape[0],) + slice_sizes
+    offset_dims = (0,) + tuple(onp.add(1, dimension_numbers.offset_dims))
+    collapsed_slice_dims = tuple(onp.add(1, dimension_numbers.collapsed_slice_dims))
+    start_index_map = tuple(onp.add(1, dimension_numbers.start_index_map))
     dnums = GatherDimensionNumbers(
         offset_dims=offset_dims,
         collapsed_slice_dims=collapsed_slice_dims,
         start_index_map=start_index_map,
         index_vector_dim=dimension_numbers.index_vector_dim)
-
     return gather(operand, start_indices, dimension_numbers=dnums,
-                  slice_sizes=slice_sizes), out_bdim
+                  slice_sizes=slice_sizes), 0
 
   elif operand_bdim is None and start_indices_bdim is not None:
     start_indices = batching.move_dim_to_front(start_indices, start_indices_bdim)
