@@ -2091,7 +2091,7 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
     if num_preceding_window_dims == 0:
       out_bdim = 0
     else:
-      out_bdim = offset_dims[num_preceding_window_dims - 1] + 1
+      out_bdim = dimension_numbers.offset_dims[num_preceding_window_dims - 1] + 1
     offset_dims = list(dimension_numbers.offset_dims)
     offset_dims = (offset_dims[:num_preceding_window_dims]
                    + [out_bdim]
@@ -2118,24 +2118,14 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
                   slice_sizes=slice_sizes), out_bdim
 
   elif operand_bdim is None and start_indices_bdim is not None:
-    # figure out where the index bdim will end up in the output
-    nd_index = dimension_numbers.index_vector_dim < start_indices.ndim - 1
-    orig_out_ndim = (operand.ndim + start_indices.ndim - int(nd_index)
-                     - len(dimension_numbers.collapsed_slice_dims))
-    orig_offset_dims = set(dimension_numbers.offset_dims)
-    # this 'batch_dims' is in the sense of the Gather HLO docs, not vmap
-    orig_batch_dims = [i for i in range(orig_out_ndim) if i not in orig_offset_dims]
-    assert len(orig_batch_dims) == dimension_numbers.index_vector_dim
-
-    out_bdim = 0  # TODO
-    # TODO offset_dims?
-
+    start_indices = batching.move_dim_to_front(start_indices, start_indices_bdim)
+    offset_dims = tuple(onp.add(1, dimension_numbers.offset_dims))
     index_vector_dim = dimension_numbers.index_vector_dim + 1
+    start_index_map = (0,) + tuple(dimension_numbers.start_index_map)
     dnums = GatherDimensionNumbers(
-        offset_dims=dimension_numbers.offset_dims,
+        offset_dims=offset_dims,
         collapsed_slice_dims=dimension_numbers.collapsed_slice_dims,
-        start_index_map=dimension_numbers.start_index_map,
-        index_vector_dim=index_vector_dim)
+        start_index_map=start_index_map, index_vector_dim=index_vector_dim)
     return gather(operand, start_indices, dimension_numbers=dnums,
                   slice_sizes=slice_sizes), 0
   else:
