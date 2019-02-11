@@ -2111,6 +2111,7 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
                   slice_sizes=slice_sizes), 0
 
   else:
+    # TODO(mattjj,phawkins): this code is wrong
     operand = batching.move_dim_to_front(operand, operand_bdim)
     start_indices = batching.move_dim_to_front(start_indices, start_indices_bdim)
 
@@ -2125,25 +2126,6 @@ def _gather_batching_rule(batched_args, batch_dims, dimension_numbers,
         index_vector_dim=dimension_numbers.index_vector_dim + 1)
     return gather(operand, start_indices, dimension_numbers=dnums,
                   slice_sizes=slice_sizes), 0
-
-    # operand = batching.move_dim_to_front(operand, operand_bdim)
-
-    # # move batch dim of start_indices to the end, to act like an ndindex
-    # dim = start_indices_bdim
-    # perm = tuple(range(dim)) + tuple(range(dim + 1, start_indices.ndim)) + (dim,)
-    # start_indices = transpose(start_indices, perm)
-
-    # slice_sizes = (operand.shape[0],) + slice_sizes
-    # offset_dims = (0,) + tuple(onp.add(1, dimension_numbers.offset_dims))
-    # collapsed_slice_dims = tuple(onp.add(1, dimension_numbers.collapsed_slice_dims))
-    # start_index_map = tuple(onp.add(1, dimension_numbers.start_index_map)) + (0,)
-    # dnums = GatherDimensionNumbers(
-    #     offset_dims=offset_dims,
-    #     collapsed_slice_dims=collapsed_slice_dims,
-    #     start_index_map=start_index_map,
-    #     index_vector_dim=dimension_numbers.index_vector_dim)
-    # return gather(operand, start_indices, dimension_numbers=dnums,
-    #               slice_sizes=slice_sizes), 0
 
 
 gather_p = standard_primitive(
